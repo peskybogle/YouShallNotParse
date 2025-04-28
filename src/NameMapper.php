@@ -55,7 +55,11 @@ class NameMapper {
         
         // Check if file is in ignored directory
         foreach ($this->config['ignore_directories'] ?? [] as $dir) {
-            if (strpos($path, strtolower($dir) . DIRECTORY_SEPARATOR) !== false) {
+            $dir = strtolower($dir);
+            $fullCheck = DIRECTORY_SEPARATOR . $dir . DIRECTORY_SEPARATOR;
+            $startCheck = $dir . DIRECTORY_SEPARATOR;
+            if (strpos($path, $fullCheck) !== false || 
+                strpos($path, $startCheck) === 0) {
                 return true;
             }
         }
@@ -150,20 +154,29 @@ class NameMapper {
         return $this->classMappings[$lowerName];
     }
 
+    public function addFileToMap(string $path): void {
+        if (!$this->shouldRenameFile($path)) {
+            return;
+        }
+
+        $basename = basename($path);
+        if (!isset($this->fileMappings[$basename])) {
+            $this->fileMappings[$basename] = $this->generateUniqueName('file') . '.' . pathinfo($path, PATHINFO_EXTENSION);
+        }
+    }
+
     public function mapFile(string $path): string {
         if (!$this->shouldRenameFile($path)) {
             return $path;
         }
 
-        $directory = dirname($path);
-        $extension = pathinfo($path, PATHINFO_EXTENSION);
-        $baseName = strtolower(basename($path, ".$extension"));
-
-        if (!isset($this->fileMappings[$baseName])) {
-            $this->fileMappings[$baseName] = $this->generateUniqueName('file');
+        $basename = basename($path);
+        if (!isset($this->fileMappings[$basename])) {
+            return $path;
         }
 
-        return $directory . DIRECTORY_SEPARATOR . $this->fileMappings[$baseName] . ".$extension";
+        $directory = dirname($path);
+        return ($directory === '.' ? '' : $directory . DIRECTORY_SEPARATOR) . $this->fileMappings[$basename];
     }
 
     public function saveNameMaps(): void {
@@ -196,5 +209,17 @@ class NameMapper {
 
     public function getVariableMappings(): array {
         return $this->variableMappings;
+    }
+
+    public function setFileMappings(array $mappings): void {
+        $this->fileMappings = $mappings;
+    }
+
+    public function getFileMappings(): array {
+        return $this->fileMappings;
+    }
+
+    public function getSourceDirectory(): string {
+        return $this->config['source_directory'];
     }
 } 

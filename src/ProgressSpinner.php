@@ -16,7 +16,7 @@ class ProgressSpinner {
     }
 
     public function stop(string $completionMessage = ''): void {
-        echo "\r" . str_pad($completionMessage ?: ($this->message . ' Complete'), 50) . PHP_EOL;
+        echo "\r" . str_pad($completionMessage ?: ($this->message . ' Complete.'), 50) . PHP_EOL;
     }
 
     public function update(): void {

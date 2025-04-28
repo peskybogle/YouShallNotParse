@@ -9,5 +9,6 @@
   "skip_classes": [],
   "strip_comments": false,
   "strip_whitespace": false,
+  "strip_linebreaks": false,
   "rename_files": false
 }

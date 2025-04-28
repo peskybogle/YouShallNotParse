@@ -3,18 +3,29 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A lightweight PHP code obfuscator designed to make project logic harder to reverse-engineer.  
-**You Shall Not Parse** renames PHP functions, classes, variables & ~~file names~~, and updates any includes/requires accordingly. It should not alter anything outside PHP tags, so HTML, CSS, Javascript etc should be left alone.
+**You Shall Not Parse** renames PHP functions, classes, variables & file names, and updates any includes/requires accordingly. It should not alter anything outside PHP tags, so HTML, CSS, Javascript etc should be left alone.
 
 **You Shall Not Parse** is not designed to make your project harder to edit or copy, but to make understanding the logic far harder.
 
 ## ⚠️ Early Release Warning
 
-This is an early version of the software, built for a specific personal use case. You're welcome to use it, but it should be considered alpha quality at best. While the core functionality works in my specific scenario, it has only undergone light testing. Please:
+This is an early version of the software, built for a specific use case. You're welcome to use it and improve it as you like, but it should be considered a very early prototype rarther than a finished tool. While all functionality works in the specific scenario it was designed for, it has only undergone light testing. Please:
 
 - Test thoroughly in a safe environment before using on production code
 - Always maintain backups of your source code
 - Verify the obfuscated output works as expected
 - Report any issues via GitHub
+
+## 🎯 Project Scope
+
+This tool was originally developed for a specific PHP project with a particular structure and requirements. While it successfully handles various include patterns and file organisations, you might need to adapt it for different project architectures or frameworks. The core obfuscation logic is solid for its designed use, but you may need to:
+
+- Adjust the configuration for your specific framework requirements
+- Extend the safety list for framework-specific functions
+- Modify the file handling logic for complex autoloaders
+- Test thoroughly with your specific project structure
+
+Think of it as a solid foundation that you can build upon, rather than a one-size-fits-all solution.
 
 ## 🚀 Features
 
@@ -23,9 +34,9 @@ This is an early version of the software, built for a specific personal use case
 - Only processes code within PHP tags, preserves HTML/CSS/JavaScript
 - Keeps original files untouched — writes to a separate output folder
 - Skips specified files, folders, variables, classes & functions
-- ~~Rename all, some or none of your files~~
+- Rename all, some or none of your files
 - Updates all references (`include`, `require`, etc.) to match renamed files
-- ~~Optional comment and whitespace removal~~
+- Optional comment, whitespace and linebreak removal
 
 ## 🎯 Before & After Examples
 
@@ -281,6 +292,7 @@ cd YouShallNotParse
   "skip_classes": [], //e.g. ["customers"]
   "strip_comments": true, //true or false
   "strip_whitespace": false, //true or false
+  "strip_linebreaks": false, //true or false
   "rename_files": false //true or false
 }
 ```
@@ -313,12 +325,15 @@ Contains functions, variables and classes that should never be renamed. You shou
 
 ## 📁 Output
 
-The tool generates `file_name_map.json` containing mappings of original names to obfuscated names for:
+The tool generates JSON files containing mappings of original names to obfuscated names:
 
-- Variables
-- Functions
-- Classes
-- Files
+- class_name_map.json
+- function_name_map.json
+- variable_name_map.json
+- method_name_map.json
+- file_name_map.json
+
+It then copies your files from the source directory to your destination directory, swapping the original names to the obfuscated ones
 
 ## ⚠️ The disclaimer
 

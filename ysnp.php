@@ -45,24 +45,28 @@ if (file_exists($config['destination_directory'])) {
     fclose($handle);
 }
 
-echo "Running. This may take a few minutes.\n\n";
+echo "Running.\n\n";
 
 // First pass - discover classes, methods, functions and variables
-$spinner->start('Mapping classes');
+$spinner->start('Mapping classes...');
 processDirectory($config['source_directory'], $processor, $spinner);
 $spinner->stop('Classes mapped');
 
-$spinner->start('Mapping methods');
+$spinner->start('Mapping methods...');
 $spinner->stop('Methods mapped');
 
-$spinner->start('Mapping functions');
+$spinner->start('Mapping functions...');
 $spinner->stop('Functions mapped');
 
-$spinner->start('Mapping variables');
+$spinner->start('Mapping variables...');
 $spinner->stop('Variables mapped');
 
+$spinner->start('Mapping files...');
+$mapper->setFileMappings($processor->getFileMappings());
+$spinner->stop('Files mapped');
+
 // Save the mappings
-$spinner->start('Saving mappings');
+$spinner->start('Saving mappings...');
 $mapper->saveNameMaps();
 $spinner->stop('Mappings saved');
 
@@ -71,14 +75,15 @@ $transformer = new CodeTransformer(
     $mapper->getClassMappings(),
     $mapper->getMethodMappings(),
     $mapper->getFunctionMappings(),
-    $mapper->getVariableMappings()
+    $mapper->getVariableMappings(),
+    $mapper
 );
 
-$spinner->start('Obfuscating files');
+$spinner->start('Obfuscating files, this can take a few minutes.');
 transformDirectory($config['source_directory'], $config['destination_directory'], $transformer, $spinner);
 $spinner->stop();
 
-echo "\nComplete. Your obfuscated files are in {$config['destination_directory']}\n";
+echo "\nYour obfuscated files are in {$config['destination_directory']}\n";
 
 function processDirectory(string $directory, FileProcessor $processor, ProgressSpinner $spinner): void {
     $iterator = new RecursiveIteratorIterator(
@@ -102,7 +107,19 @@ function transformDirectory(string $sourceDir, string $destDir, CodeTransformer 
         if ($file->isFile() && $file->getExtension() === 'php') {
             $relativePath = str_replace($sourceDir, '', $file->getPathname());
             $destPath = $destDir . $relativePath;
-            $transformer->transformFile($file->getPathname(), $destPath);
+            
+            // Create destination directory if it doesn't exist
+            $targetSubDir = dirname($destPath);
+            if (!is_dir($targetSubDir)) {
+                mkdir($targetSubDir, 0777, true);
+            }
+
+            // For ignored files, just copy them without transformation
+            if ($transformer->shouldIgnoreFile($file->getPathname())) {
+                copy($file->getPathname(), $destPath);
+            } else {
+                $transformer->transformFile($file->getPathname(), $destPath);
+            }
             $spinner->update();
         }
     }

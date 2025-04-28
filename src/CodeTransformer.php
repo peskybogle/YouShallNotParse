@@ -7,26 +7,58 @@ use PhpParser\NodeTraverser;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
 use YouShallNotParse\Visitor\TransformVisitor;
+use YouShallNotParse\Visitor\CommentStripVisitor;
+use YouShallNotParse\Visitor\IncludeVisitor;
+use YouShallNotParse\NameMapper;
 
 class CodeTransformer {
     private \PhpParser\Parser $parser;
     private NodeTraverser $traverser;
     private Standard $printer;
     private TransformVisitor $transformVisitor;
+    private ?CommentStripVisitor $commentStripVisitor;
+    private ?IncludeVisitor $includeVisitor;
     private array $classMappings;
     private array $methodMappings;
     private array $functionMappings;
     private array $variableMappings;
+    private bool $stripComments;
+    private bool $stripWhitespace;
+    private bool $stripLinebreaks;
+    private NameMapper $nameMapper;
 
     public function __construct(
         array $classMappings,
         array $methodMappings,
         array $functionMappings,
-        array $variableMappings
+        array $variableMappings,
+        NameMapper $nameMapper
     ) {
         $this->parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
         $this->traverser = new NodeTraverser();
-        $this->printer = new Standard();
+        $this->nameMapper = $nameMapper;
+
+        // Load config to check if we should strip comments, whitespace and linebreaks
+        $config = json_decode(file_get_contents('ysnp.config.json'), true);
+        $this->stripComments = $config['strip_comments'] ?? false;
+        $this->stripWhitespace = $config['strip_whitespace'] ?? false;
+        $this->stripLinebreaks = $config['strip_linebreaks'] ?? false;
+        
+        // Configure printer options based on stripping settings
+        $printerOptions = [
+            'shortArraySyntax' => true
+        ];
+        
+        if ($this->stripWhitespace || $this->stripLinebreaks) {
+            $printerOptions['indent'] = '';
+        }
+        
+        if ($this->stripLinebreaks) {
+            $printerOptions['newline'] = '';
+        }
+        
+        $this->printer = new Standard($printerOptions);
+
         $this->transformVisitor = new TransformVisitor(
             $classMappings,
             $methodMappings,
@@ -34,6 +66,15 @@ class CodeTransformer {
             $variableMappings
         );
         $this->traverser->addVisitor($this->transformVisitor);
+        
+        if ($this->stripComments) {
+            $this->commentStripVisitor = new CommentStripVisitor();
+            $this->traverser->addVisitor($this->commentStripVisitor);
+        }
+
+        $this->includeVisitor = new IncludeVisitor($nameMapper);
+        $this->traverser->addVisitor($this->includeVisitor);
+
         $this->classMappings = $classMappings;
         $this->methodMappings = $methodMappings;
         $this->functionMappings = $functionMappings;
@@ -53,7 +94,28 @@ class CodeTransformer {
             }
 
             $ast = $this->traverser->traverse($ast);
-            return $this->printer->prettyPrintFile($ast);
+            $transformedCode = $this->printer->prettyPrintFile($ast);
+
+            // Additional cleanup based on stripping settings
+            if ($this->stripWhitespace) {
+                // Remove extra spaces
+                $transformedCode = preg_replace('/\s+/', ' ', $transformedCode);
+                // Fix spacing around operators and punctuation
+                $transformedCode = preg_replace('/\s*([\{\}\[\]\(\)\=\<\>\+\-\*\/\,\;])\s*/', '$1', $transformedCode);
+                // Add space after comma in function calls
+                $transformedCode = preg_replace('/,(\S)/', ', $1', $transformedCode);
+                // Remove whitespace between PHP closing and opening tags
+                $transformedCode = preg_replace('/\?>\s+<\?php/', "?><?php", $transformedCode);
+            }
+
+            if ($this->stripLinebreaks) {
+                // Remove all linebreaks
+                $transformedCode = str_replace(["\r\n", "\r", "\n"], '', $transformedCode);
+                // Ensure single space after semicolons for readability in case of errors
+                $transformedCode = preg_replace('/;(\S)/', '; $1', $transformedCode);
+            }
+
+            return $transformedCode;
         } catch (Error $error) {
             throw new \RuntimeException("Parse error: " . $error->getMessage());
         }
@@ -67,72 +129,24 @@ class CodeTransformer {
         }
 
         $code = file_get_contents($sourceFile);
+        if ($code === false) {
+            throw new \RuntimeException("Could not read file: {$sourceFile}");
+        }
+
+        // Set current file for include visitor
+        $this->includeVisitor->setCurrentFile($sourceFile);
+
+        // Transform the code
+        $transformedCode = $this->transformCode($code);
+
+        // Get the renamed destination file path
+        $renamedDestFile = $this->nameMapper->mapFile($destinationFile);
         
-        // Load safety list and skip lists
-        $safetyList = json_decode(file_get_contents('ysnp.safety.json'), true);
-        $config = json_decode(file_get_contents('ysnp.config.json'), true);
-        $safeVariables = array_map('strtolower', $safetyList['variables'] ?? []);
-        $skipClasses = array_map('strtolower', $config['skip_classes'] ?? []);
-        $safeClasses = array_map('strtolower', $safetyList['classes'] ?? []);
-        $safeFunctions = array_map('strtolower', $safetyList['functions'] ?? []);
-        $skipMethods = array_map('strtolower', $config['skip_methods'] ?? []);
-        
-        // Case-insensitive variable name replacements
-        foreach ($this->variableMappings as $original => $obfuscated) {
-            $lowerOriginal = strtolower($original);
-            // Skip if variable is in safety list
-            if (!in_array($lowerOriginal, $safeVariables)) {
-                // Replace standard variables ($varname)
-                $code = preg_replace('/\$' . preg_quote($original, '/') . '\b/i', '$' . $obfuscated, $code);
-                
-                // Replace property references ($this->varname and $obj->varname)
-                $code = preg_replace('/->\s*' . preg_quote($original, '/') . '\b/i', '->' . $obfuscated, $code);
-                
-                // Replace property declarations (public $varname)
-                $code = preg_replace('/public\s+\$' . preg_quote($original, '/') . '\b/i', 'public $' . $obfuscated, $code);
-                
-                // Replace property assignments ($this->varname =)
-                $code = preg_replace('/\$this->' . preg_quote($original, '/') . '\b/i', '$this->' . $obfuscated, $code);
-            }
-        }
+        // Write the transformed code to the renamed file
+        file_put_contents($renamedDestFile, $transformedCode);
+    }
 
-        // Case-insensitive function name replacements
-        foreach ($this->functionMappings as $original => $obfuscated) {
-            $lowerOriginal = strtolower($original);
-            // Match "function name" pattern
-            $code = preg_replace('/function\s+' . preg_quote($lowerOriginal, '/') . '\b/i', 'function ' . $obfuscated, $code);
-            // Match "name(" pattern for function calls
-            $code = preg_replace('/\b' . preg_quote($lowerOriginal, '/') . '\s*\(/i', $obfuscated . '(', $code);
-        }
-
-        // Case-insensitive method name replacements
-        foreach ($this->methodMappings as $original => $obfuscated) {
-            $lowerOriginal = strtolower($original);
-            // Skip if method is in safety list or skip list
-            if (!in_array($lowerOriginal, $safeFunctions) && !in_array($lowerOriginal, $skipMethods)) {
-                // Match "function name" pattern in class
-                $code = preg_replace('/function\s+' . preg_quote($lowerOriginal, '/') . '\b/i', 'function ' . $obfuscated, $code);
-                // Match "->name(" pattern for method calls
-                $code = preg_replace('/->\s*' . preg_quote($lowerOriginal, '/') . '\s*\(/i', '->' . $obfuscated . '(', $code);
-            }
-        }
-
-        // Case-insensitive class name replacements
-        foreach ($this->classMappings as $original => $obfuscated) {
-            $lowerOriginal = strtolower($original);
-            // Skip if class is in safety list or skip list
-            if (!in_array($lowerOriginal, $skipClasses) && !in_array($lowerOriginal, $safeClasses)) {
-                // Match "class Name" pattern
-                $code = preg_replace('/class\s+' . preg_quote($lowerOriginal, '/') . '\b/i', 'class ' . $obfuscated, $code);
-                // Match "new Name" pattern
-                $code = preg_replace('/new\s+' . preg_quote($lowerOriginal, '/') . '\b/i', 'new ' . $obfuscated, $code);
-                // Match type hints and extends/implements
-                $code = preg_replace('/:\s*' . preg_quote($lowerOriginal, '/') . '\b/i', ': ' . $obfuscated, $code);
-                $code = preg_replace('/extends\s+' . preg_quote($lowerOriginal, '/') . '\b/i', 'extends ' . $obfuscated, $code);
-                $code = preg_replace('/implements\s+' . preg_quote($lowerOriginal, '/') . '\b/i', 'implements ' . $obfuscated, $code);
-            }
-        }
-
-        file_put_contents($destinationFile, $code);
+    public function shouldIgnoreFile(string $path): bool {
+        return $this->nameMapper->shouldIgnoreFile($path);
     }
 } 

@@ -2,7 +2,7 @@
   "name": "peskybogle/youshallnotparse",
   "description": "A PHP code obfuscator that renames functions, classes, variables & files to make logic harder to reverse-engineer. Ignores HTML, CSS and JS in your files.",
   "type": "project",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "license": "MIT",
   "authors": [
     {

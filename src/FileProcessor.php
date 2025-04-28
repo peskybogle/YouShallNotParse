@@ -8,6 +8,7 @@ use PhpParser\ParserFactory;
 use YouShallNotParse\Visitor\ClassVisitor;
 use YouShallNotParse\Visitor\FunctionVisitor;
 use YouShallNotParse\Visitor\VariableVisitor;
+use YouShallNotParse\Visitor\FileVisitor;
 
 class FileProcessor {
     private NameMapper $nameMapper;
@@ -16,6 +17,7 @@ class FileProcessor {
     private ClassVisitor $classVisitor;
     private FunctionVisitor $functionVisitor;
     private VariableVisitor $variableVisitor;
+    private FileVisitor $fileVisitor;
     private array $classMappings = [];
     private array $methodMappings = [];
     private array $functionMappings = [];
@@ -28,9 +30,11 @@ class FileProcessor {
         $this->classVisitor = new ClassVisitor($nameMapper);
         $this->functionVisitor = new FunctionVisitor($nameMapper);
         $this->variableVisitor = new VariableVisitor($nameMapper);
+        $this->fileVisitor = new FileVisitor($nameMapper);
         $this->traverser->addVisitor($this->classVisitor);
         $this->traverser->addVisitor($this->functionVisitor);
         $this->traverser->addVisitor($this->variableVisitor);
+        $this->traverser->addVisitor($this->fileVisitor);
     }
 
     public function processFile(string $filePath): void {
@@ -50,6 +54,9 @@ class FileProcessor {
         try {
             // Only process PHP code within PHP tags
             if (strpos($code, '<?php') !== false) {
+                // Set current file before parsing
+                $this->fileVisitor->setCurrentFile($filePath);
+                
                 $ast = $this->parser->parse($code);
                 if ($ast !== null) {
                     $this->traverser->traverse($ast);
@@ -96,5 +103,9 @@ class FileProcessor {
 
     public function getVariableMappings(): array {
         return $this->variableMappings;
+    }
+
+    public function getFileMappings(): array {
+        return $this->nameMapper->getFileMappings();
     }
 } 
