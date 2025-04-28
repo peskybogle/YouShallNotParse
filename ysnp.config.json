@@ -1,0 +1,13 @@
+{
+  "source_directory": "/path/to/your/source/directory",
+  "destination_directory": "/path/to/your/output/directory",
+  "ignore_directories": [],
+  "ignore_files": [],
+  "skip_rename_files": [],
+  "skip_variables": [],
+  "skip_functions": [],
+  "skip_classes": [],
+  "strip_comments": false,
+  "strip_whitespace": false,
+  "rename_files": false
+}
