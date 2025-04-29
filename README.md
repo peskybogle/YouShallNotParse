@@ -9,7 +9,7 @@ A lightweight PHP code obfuscator designed to make project logic harder to rever
 
 ## ⚠️ Early Release Warning
 
-This is an early version of the software, built for a specific use case. You're welcome to use it and improve it as you like, but it should be considered a very early prototype rarther than a finished tool. While all functionality works in the specific scenario it was designed for, it has only undergone light testing. Please:
+This is an early version, built for a specific use case. You're welcome to use it and improve it as you like, but it should be considered an early prototype rarther than a finished tool. While all functionality works in the specific scenario it was designed for, it has only undergone light testing. Please:
 
 - Test thoroughly in a safe environment before using on production code
 - Always maintain backups of your source code
@@ -30,13 +30,20 @@ Think of it as a solid foundation that you can build upon, rather than a one-siz
 ## 🚀 Features
 
 - Obfuscates PHP file names, variables, classes & functions into random strings
-- Stores consistent mappings across files in a JSON file
+- Stores consistent mappings across files in JSON files
 - Only processes code within PHP tags, preserves HTML/CSS/JavaScript
 - Keeps original files untouched — writes to a separate output folder
 - Skips specified files, folders, variables, classes & functions
 - Rename all, some or none of your files
 - Updates all references (`include`, `require`, etc.) to match renamed files
 - Optional comment, whitespace and linebreak removal
+
+## ✅ To do
+
+- More granular control over obfuscating classes (e.g. obfuscate name, don't obfuscate methods)
+- Obfuscation of array values
+- Handle namespaced classes
+- Automate testing
 
 ## 🎯 Before & After Examples
 
